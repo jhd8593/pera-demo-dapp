@@ -1,0 +1,58 @@
+{
+  "name": "pera-demo-dapp",
+  "version": "0.1.0",
+  "homepage": "https://perawallet.github.io/pera-demo-dapp/",
+  "private": true,
+  "dependencies": {
+    "@hipo/react-ui-toolkit": "1.1.2",
+    "@perawallet/connect": "npm:@perawallet/connect-beta@1.4.1",
+    "@perawallet/onramp": "^1.1.1",
+    "@types/react-modal": "^3.13.1",
+    "algosdk": "3.0.0",
+    "notiboy-js-sdk": "^1.1.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "react-modal": "^3.16.1",
+    "react-scripts": "^5.0.1",
+    "typescript": "^4.5.4",
+    "web-vitals": "^2.1.4"
+  },
+  "devDependencies": {
+    "@types/react-dom": "^18.3.1",
+    "@typescript-eslint/eslint-plugin": "^8.16.0",
+    "@typescript-eslint/parser": "^8.16.0",
+    "eslint": "^8.6.0",
+    "eslint-config-prettier": "^8.3.0",
+    "eslint-import-resolver-typescript": "^2.5.0",
+    "prettier": "^2.5.1",
+    "react-error-overlay": "^6.0.9",
+    "sass": "1.56.1",
+    "sharp": "^0.33.5",
+    "stylelint": "^13.12.0",
+    "stylelint-no-unsupported-browser-features": "^4.1.4",
+    "stylelint-order": "^4.1.0",
+    "stylelint-scss": "^3.19.0"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
+  "eslintIgnore": [
+    "signTxnUtils.tsx"
+  ],
+  "browserslist": [
+    ">0.2%",
+    "not dead",
+    "not op_mini all"
+  ],
+  "keywords": [],
+  "description": ""
+}

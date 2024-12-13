@@ -1,0 +1,136 @@
+.app {
+  display: flex;
+  align-items: flex-start;  // Changed from center to flex-start
+  justify-content: flex-start; // Changed from center to flex-start
+  flex-direction: column;
+
+  max-width: 1200px;  // Increased from 860px
+  min-height: 100vh;
+
+  margin: 0 auto;
+  padding: 80px 60px;  // Increased padding
+
+  color: #fff;
+  background: transparent; // Removed gradient as it's in body
+
+  &--connected {
+    margin: 120px auto 0;  // Adjusted margin
+  }
+}
+
+.app__header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 3;
+
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+
+  width: 100%;  // Changed to full width
+  padding: 24px 60px;  // Increased padding
+  background: rgba(26, 26, 46, 0.95);  // Made background more opaque
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.app__button {
+  --button-bg: #6b46fe;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  color: white;
+  transition: all 0.3s ease;
+
+  &--connect {
+    --button-bg: transparent;
+    --button-height: unset;
+    --button-width: 100%;
+    max-width: 300px;
+
+    background: linear-gradient(135deg, #00ff87 0%, #60efff 100%);
+    border: none;
+    color: #1a1a2e;
+    padding: 16px 32px;  // Increased padding
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin: 40px 0;  // Added margin
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(96, 239, 255, 0.4);
+    }
+
+    &:active {
+      transform: translateY(0);
+    }
+  }
+
+  &--disconnect {
+    --button-bg: transparent;
+    --button-height: unset;
+
+    background: rgba(255, 107, 107, 0.1);
+    border: 2px solid #ff6b6b;
+    color: #ff6b6b;
+    padding: 12px 24px;  // Increased padding
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    transition: all 0.3s ease;
+
+    &:hover {
+      background: #ff6b6b;
+      color: white;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 16px rgba(255, 107, 107, 0.4);
+    }
+
+    &:active {
+      transform: translateY(0);
+    }
+  }
+}
+
+.app__account-address {
+  margin: 30px 0;  // Increased margin
+  padding: 1.5rem;  // Increased padding
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  word-break: break-all;
+  font-family: monospace;
+  color: #60efff;
+  border: 1px solid rgba(96, 239, 255, 0.2);
+  width: 100%;  // Added full width
+  max-width: 800px;  // Added max-width
+}
+
+.app__text-purple {
+  color: #00ff87;
+  font-weight: 600;
+  font-size: 1.2rem;  // Added font size
+  margin: 20px 0;  // Added margin
+}
+
+// Added container for content
+.app__content {
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+  text-align: left;  // Changed from center
+}
+
+@media screen and (max-width: 789px) {
+  .app {
+    padding: 60px 24px;  // Adjusted padding for mobile
+  }
+
+  .app__header {
+    padding: 20px 24px;  // Adjusted padding for mobile
+  }
+
+  .app__account-address {
+    padding: 1rem;  // Reduced padding for mobile
+  }
+}
