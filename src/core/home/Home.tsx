@@ -72,7 +72,6 @@ function Home() {
         {isConnectedToPeraWallet && (
           <Game 
             accountAddress={accountAddress}
-            peraWallet={peraWallet}
             chain={ChainType.MainNet}
             handleSetLog={handleSetLog}
           />

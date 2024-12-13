@@ -1,46 +1,44 @@
-import { useState } from "react";
-import { PeraWalletConnect } from "@perawallet/connect";
-import { ChainType, clientForChain } from "../utils/algod/algod";
-import { Attack, SLUGS, Slug } from "./types";
-import { SlugImages } from "../assets/images";
-import React from 'react';
-
-interface GameProps {
-  accountAddress: string | null;
-  peraWallet: PeraWalletConnect;
-  chain: ChainType;
-  handleSetLog: (log: string) => void;
-}
+import React, { useState } from 'react';
+import { SlugImages } from '../assets/images';
+import { Attack, SLUGS, Slug } from './types';
+import { clientForChain, ChainType } from '../utils/algod/algod';
 
 // Constants
-const SLUG_ASSET_IDS = {
-  Daggerpult: 527479654,
-  Hailstorm: 527477069,
-  Zipacute: 527475282,
-  Slugger: 337228921
-};
-const REQUIRED_SLUGS_COUNT = 3;
-const BATTLE_ANIMATION_DURATION = 2000;
-const INITIAL_BATTLE_DELAY = 500;
+const OPPONENT_BENCH_SIZE = 3;
+const REQUIRED_SLUGS_COUNT = 4;
 const PERCENTAGE_BASE = 100;
 const BATTLE_WIN_CHANCE = 50;
-
-type BattleResult = 'victory' | 'defeat' | 'draw' | null;
+const BATTLE_ANIMATION_DURATION = 2000;
+const INITIAL_BATTLE_DELAY = 1000;
 
 interface OwnedSlug extends Slug {
   owned: boolean;
 }
 
-function Game({ accountAddress, chain, handleSetLog }: GameProps): JSX.Element {
+const SLUG_ASSET_IDS: { [key: string]: number } = {
+  'Slugger': 337228921,
+  'Daggerpult': 527479654,
+  'Zipacute': 527475282,
+  'Hailstorm': 527477069
+};
+
+function Game({ accountAddress, chain, handleSetLog }: { 
+  accountAddress: string | null; 
+  chain: ChainType;
+  handleSetLog: (message: string) => void;
+}) {
   const [isSelecting, setIsSelecting] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [selectedSlugs, setSelectedSlugs] = useState<OwnedSlug[]>([]);
   const [availableSlugs, setAvailableSlugs] = useState<OwnedSlug[]>([]);
-  const [selectedSlugs, setSelectedSlugs] = useState<Slug[]>([]);
   const [activeSlugIndex, setActiveSlugIndex] = useState(0);
-  const [battleResult, setBattleResult] = useState<BattleResult>(null);
   const [isBattling, setIsBattling] = useState(false);
+  const [battleResult, setBattleResult] = useState<string | null>(null);
   const [attackCooldowns, setAttackCooldowns] = useState<{ [key: string]: number }>({});
   const [draggedSlugIndex, setDraggedSlugIndex] = useState<number | null>(null);
+
+  // Find Slugger from SLUGS array for opponent
+  const opponentActiveSlug = SLUGS.find(slug => slug.name === 'Slugger') || SLUGS[0];
 
   React.useEffect(() => {
     if (accountAddress) {
@@ -202,6 +200,46 @@ function Game({ accountAddress, chain, handleSetLog }: GameProps): JSX.Element {
     );
   }
 
+  function renderOpponentSection() {
+    return (
+      <section className="game__opponent-section">
+        <div className="game__opponent-bench">
+          <h3 className="game__subsection-title game__subsection-title--centered">Opponent's Bench</h3>
+          <div className="game__player-area">
+            {Array(OPPONENT_BENCH_SIZE).fill(null).map((_, index) => (
+              <div key={index} className="game__card game__card--face-down">
+                <div className="game__card-content">
+                  <img 
+                    src={SlugImages['Back_Card.png']}
+                    alt="Face down card"
+                    className="game__card-image"
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        
+        <div className="game__opponent-active">
+          <div className="game__card game__card--opponent-active">
+            <div className="game__card-content">
+              <div className="game__card-title">{opponentActiveSlug.name}</div>
+              <img 
+                src={SlugImages[opponentActiveSlug.image as keyof typeof SlugImages]} 
+                alt={opponentActiveSlug.name}
+                className="game__card-image"
+              />
+              {renderHealthBar(
+                opponentActiveSlug.health,
+                opponentActiveSlug.maxHealth
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   if (!accountAddress) {
     return (
       <div className="game">
@@ -279,6 +317,8 @@ function Game({ accountAddress, chain, handleSetLog }: GameProps): JSX.Element {
           </section>
         ) : (
           <div className="game__centered-content">
+            {renderOpponentSection()}
+
             <section className="game__battle-section">
               <div className="game__battle-zone">
                 {battleResult && (
