@@ -1,4 +1,4 @@
-# Pera Wallet Example Demo dApp
+# Game on Algorand 
 
-- You can check live demo from [here](https://perawallet.github.io/pera-demo-dapp/)
+- In Progress
 
