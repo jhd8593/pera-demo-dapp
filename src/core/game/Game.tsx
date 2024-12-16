@@ -1,300 +1,141 @@
-import React, { useState } from 'react';
-import { SlugImages } from '../assets/images';
-import { Attack, SLUGS, Slug } from './types';
-import { clientForChain, ChainType } from '../utils/algod/algod';
+import React, { useState, useEffect } from "react";
+import './_game.scss';
+import { ChainType } from "../utils/algod/algod";
+import { checkWalletForSlugs } from "../utils/algod/assets";
+import { SLUGS, Slug } from "./types";
+import { SlugImages } from "../assets/images";
 
-// Constants
-const OPPONENT_BENCH_SIZE = 3;
-const REQUIRED_SLUGS_COUNT = 4;
-const PERCENTAGE_BASE = 100;
-const BATTLE_WIN_CHANCE = 50;
-const BATTLE_ANIMATION_DURATION = 2000;
-const INITIAL_BATTLE_DELAY = 1000;
-
-interface OwnedSlug extends Slug {
-  owned: boolean;
+interface GameProps {
+  accountAddress: string;
+  chain: ChainType;
+  handleSetLog: (log: string) => void;
 }
 
-const SLUG_ASSET_IDS: { [key: string]: number } = {
-  'Slugger': 337228921,
-  'Daggerpult': 527479654,
-  'Zipacute': 527475282,
-  'Hailstorm': 527477069
-};
+// Constants
+const PERCENTAGE_MULTIPLIER = 100;
+const ATTACK_ANIMATION_DURATION = 500; // milliseconds
 
-function Game({ accountAddress, chain, handleSetLog }: { 
-  accountAddress: string | null; 
-  chain: ChainType;
-  handleSetLog: (message: string) => void;
-}) {
-  const [isSelecting, setIsSelecting] = useState(true);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [selectedSlugs, setSelectedSlugs] = useState<OwnedSlug[]>([]);
-  const [availableSlugs, setAvailableSlugs] = useState<OwnedSlug[]>([]);
-  const [activeSlugIndex, setActiveSlugIndex] = useState(0);
-  const [isBattling, setIsBattling] = useState(false);
-  const [battleResult, setBattleResult] = useState<string | null>(null);
-  const [attackCooldowns, setAttackCooldowns] = useState<{ [key: string]: number }>({});
-  const [draggedSlugIndex, setDraggedSlugIndex] = useState<number | null>(null);
+// Type for image keys
+type SlugImageKey = keyof typeof SlugImages;
 
-  // Find Slugger from SLUGS array for opponent
-  const opponentActiveSlug = SLUGS.find(slug => slug.name === 'Slugger') || SLUGS[0];
+const Game: React.FC<GameProps> = ({ accountAddress, chain, handleSetLog }) => {
+  const [activeSlug, setActiveSlug] = useState<Slug>(SLUGS[0]);
+  const [benchSlugs, setBenchSlugs] = useState<Slug[]>(SLUGS.slice(1));
+  const [opponentActiveSlug] = useState<Slug>(SLUGS[0]);
+  const [isVerifying, setIsVerifying] = useState(true);
+  const [hasValidSlugs, setHasValidSlugs] = useState(false);
+  const [verificationError, setVerificationError] = useState<string | null>(null);
+  const [attackAnimation, setAttackAnimation] = useState<string>("");
 
-  React.useEffect(() => {
-    if (accountAddress) {
-      checkOwnedSlugs();
-    }
-  }, [accountAddress]);
-
-  async function checkOwnedSlugs() {
-    try {
-      const client = clientForChain(chain);
-      const accountInfo = await client.accountInformation(accountAddress!).do();
-      const assets = accountInfo['assets'] || [];
-
-      const ownedAssetIds = assets.map((asset: any) => 
-        Number(asset['asset-id'] || asset['assetId'])
-      );
-
-      const slugsWithOwnership = SLUGS.map(slug => ({
-        ...slug,
-        owned: ownedAssetIds.includes(SLUG_ASSET_IDS[slug.name as keyof typeof SLUG_ASSET_IDS])
-      }));
-
-      setAvailableSlugs(slugsWithOwnership);
-      handleSetLog(`Found ${slugsWithOwnership.filter(s => s.owned).length} owned slugs`);
-    } catch (error) {
-      console.error("Error checking owned slugs:", error);
-      handleSetLog("Error checking owned slugs");
-    }
-  }
-
-  function handleSlugSelect(slug: OwnedSlug) {
-    if (!slug.owned) {
-      handleSetLog(`You don't own ${slug.name}`);
-      return;
-    }
-
-    if (selectedSlugs.some(s => s.name === slug.name)) {
-      setSelectedSlugs(selectedSlugs.filter(s => s.name !== slug.name));
-      handleSetLog(`Removed ${slug.name} from selection`);
-    } else if (selectedSlugs.length < REQUIRED_SLUGS_COUNT) {
-      setSelectedSlugs([...selectedSlugs, slug]);
-      handleSetLog(`Added ${slug.name} to selection`);
-    } else {
-      handleSetLog(`You can only select ${REQUIRED_SLUGS_COUNT} slugs`);
-    }
-  }
-
-  function handleStartGame() {
-    if (selectedSlugs.length === REQUIRED_SLUGS_COUNT) {
-      setIsSelecting(false);
-      setIsPlaying(true);
-      handleSetLog("Battle starting!");
-    } else {
-      handleSetLog(`Please select ${REQUIRED_SLUGS_COUNT} slugs to start`);
-    }
-  }
-
-  function handleAttack(attack: Attack) {
-    if (isPlaying && !isBattling && !isAttackOnCooldown(attack)) {
-      setIsBattling(true);
-      setBattleResult(null);
-
-      // Set attack cooldown
-      setAttackCooldowns((prev: { [key: string]: number }) => ({
-        ...prev,
-        [`${activeSlugIndex}-${attack.name}`]: attack.cooldown
-      }));
-
-      // Simulate battle result
-      setTimeout(() => {
-        const result = Math.random() * PERCENTAGE_BASE < BATTLE_WIN_CHANCE ? 'victory' : 'defeat';
-        setBattleResult(result);
-        handleSetLog(`${result === 'victory' ? 'Victory!' : 'Defeat!'} Used ${attack.name} (${attack.damage} damage)`);
-
-        // Reset after animation
-        setTimeout(() => {
-          setBattleResult(null);
-          setIsBattling(false);
-
-          // Reduce cooldowns
-          setAttackCooldowns((prev: { [key: string]: number }) => {
-            const updated = { ...prev };
-            Object.keys(updated).forEach(key => {
-              if (updated[key] > 0) updated[key]--;
-            });
-            return updated;
-          });
-        }, BATTLE_ANIMATION_DURATION);
-      }, INITIAL_BATTLE_DELAY);
-    }
-  }
-
-  function isAttackOnCooldown(attack: Attack): boolean {
-    return (attackCooldowns[`${activeSlugIndex}-${attack.name}`] || 0) > 0;
-  }
-
-  function handleBenchSlugSelect(index: number) {
-    if (isPlaying && !isBattling && index !== activeSlugIndex) {
-      setActiveSlugIndex(index);
-      handleSetLog(`${selectedSlugs[index].name} moved to active position!`);
-    }
-  }
-
-  function handleDragStart(event: React.DragEvent, index: number) {
-    if (!isBattling && index !== activeSlugIndex) {
-      setDraggedSlugIndex(index);
-      event.dataTransfer.setData('text/plain', index.toString());
-      event.currentTarget.classList.add('game__card--dragging');
-    }
-  }
-
-  function handleDragEnd(event: React.DragEvent) {
-    event.currentTarget.classList.remove('game__card--dragging');
-    setDraggedSlugIndex(null);
-  }
-
-  function handleDragOver(event: React.DragEvent) {
-    event.preventDefault();
-    event.currentTarget.classList.add('game__card--drag-over');
-  }
-
-  function handleDragLeave(event: React.DragEvent) {
-    event.currentTarget.classList.remove('game__card--drag-over');
-  }
-
-  function handleDrop(event: React.DragEvent) {
-    event.preventDefault();
-    event.currentTarget.classList.remove('game__card--drag-over');
-    
-    if (draggedSlugIndex !== null) {
-      handleBenchSlugSelect(draggedSlugIndex);
-    }
-  }
-
-  function handleCardKeyPress(event: React.KeyboardEvent, index: number) {
-    if (event.key === 'Enter' || event.key === ' ') {
-      handleBenchSlugSelect(index);
-    }
-  }
-
-  function handleDropZoneKeyPress(event: React.KeyboardEvent) {
-    if (event.key === 'Enter' || event.key === ' ') {
-      if (draggedSlugIndex !== null) {
-        handleBenchSlugSelect(draggedSlugIndex);
-      }
-    }
-  }
-
-  function renderHealthBar(current: number, max: number) {
-    const percentage = (current / max) * PERCENTAGE_BASE;
-    return (
-      <div className="game__health-bar">
-        <div 
-          className="game__health-bar-fill" 
-          style={{ width: `${percentage}%` }}
-        />
-        <span className="game__health-text">{current}/{max}</span>
-      </div>
-    );
-  }
-
-  function renderOpponentSection() {
-    return (
-      <section className="game__opponent-section">
-        <div className="game__opponent-bench">
-          <h3 className="game__subsection-title game__subsection-title--centered">Opponent's Bench</h3>
-          <div className="game__player-area">
-            {Array(OPPONENT_BENCH_SIZE).fill(null).map((_, index) => (
-              <div key={index} className="game__card game__card--face-down">
-                <div className="game__card-content">
-                  <img 
-                    src={SlugImages['Back_Card.png']}
-                    alt="Face down card"
-                    className="game__card-image"
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+  useEffect(() => {
+    const verifyWallet = async () => {
+      try {
+        setIsVerifying(true);
+        setVerificationError(null);
+        handleSetLog("Verifying wallet contents...");
         
-        <div className="game__opponent-active">
-          <div className="game__card game__card--opponent-active">
-            <div className="game__card-content">
-              <div className="game__card-title">{opponentActiveSlug.name}</div>
-              <img 
-                src={SlugImages[opponentActiveSlug.image as keyof typeof SlugImages]} 
-                alt={opponentActiveSlug.name}
-                className="game__card-image"
-              />
-              {renderHealthBar(
-                opponentActiveSlug.health,
-                opponentActiveSlug.maxHealth
-              )}
-            </div>
-          </div>
-        </div>
-      </section>
-    );
-  }
+        const hasSlug = await checkWalletForSlugs(accountAddress, chain);
+        setHasValidSlugs(hasSlug);
+        
+        if (!hasSlug) {
+          const message = "No Slugs found in wallet. You need to own a Slug to play.";
+          handleSetLog(message);
+          setVerificationError(message);
+        } else {
+          handleSetLog("Slug verification successful!");
+        }
+      } catch (error) {
+        console.error('Error verifying wallet:', error);
+        const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+        handleSetLog(`Error verifying wallet: ${errorMessage}`);
+        setVerificationError(`Error verifying wallet: ${errorMessage}`);
+        setHasValidSlugs(false);
+      } finally {
+        setIsVerifying(false);
+      }
+    };
 
-  if (!accountAddress) {
+    verifyWallet();
+  }, [accountAddress, chain, handleSetLog]);
+
+  const getHealthPercentage = (slug: Slug) => {
+    return `${(slug.health / slug.maxHealth) * PERCENTAGE_MULTIPLIER}%`;
+  };
+
+  const handleDragStart = (e: React.DragEvent<HTMLDivElement>, slug: Slug) => {
+    e.dataTransfer.setData('slug', JSON.stringify(slug));
+    const draggedElement = e.currentTarget as HTMLElement;
+    draggedElement.classList.add('game__card--dragging');
+  };
+
+  const handleDragEnd = (e: React.DragEvent<HTMLDivElement>) => {
+    const draggedElement = e.currentTarget as HTMLElement;
+    draggedElement.classList.remove('game__card--dragging');
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const draggedSlug = JSON.parse(e.dataTransfer.getData('slug')) as Slug;
+    const newBenchSlugs = benchSlugs.filter(slug => slug.id !== draggedSlug.id);
+    newBenchSlugs.push(activeSlug);
+    setBenchSlugs(newBenchSlugs);
+    setActiveSlug(draggedSlug);
+    handleSetLog(`Switched to ${draggedSlug.name}!`);
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.currentTarget.classList.add('game__card--dragover');
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.currentTarget.classList.remove('game__card--dragover');
+  };
+
+  const handleAttack = (attackName: string) => {
+    setAttackAnimation("attack-flash");
+    handleSetLog(`Used ${attackName}!`);
+    setTimeout(() => setAttackAnimation(""), ATTACK_ANIMATION_DURATION);
+  };
+
+  const renderAbilityButton = (attack: any, isOpponent: boolean = false) => (
+    <button 
+      key={attack.name}
+      className={`game__ability game__ability--${attack.name.toLowerCase().replace(' ', '-')}`}
+      onClick={() => !isOpponent && handleAttack(attack.name)}
+      disabled={isOpponent}>
+      <div className="game__ability-content">
+        <span className="game__ability-name">{attack.name}</span>
+        <span className="game__ability-stat">Damage: {attack.damage}</span>
+      </div>
+      <div className="game__ability-glow"></div>
+    </button>
+  );
+
+  if (isVerifying) {
     return (
-      <div className="game">
-        <div className="game__main-content">
-          <section className="game__header">
-            <h1 className="game__title">Battle Slugs</h1>
-          </section>
-          <div className="game__message">Connect your wallet to enter the battlefield</div>
+      <div className="game game--loading">
+        <div className="game__message">
+          <p>Verifying wallet contents...</p>
+          <p className="game__debug">Wallet address: {accountAddress}</p>
+          <p className="game__debug">Network: {chain}</p>
         </div>
       </div>
     );
   }
 
-  if (isSelecting) {
+  if (!hasValidSlugs) {
     return (
-      <div className="game">
-        <div className="game__top-bar">
-          <div className="game__top-bar-content">
-            <h1 className="game__title">Select Your Slugs</h1>
+      <div className="game game--error">
+        <div className="game__message">
+          <h2>Access Denied</h2>
+          <p>{verificationError || "You need to own at least one Slug NFT to play this game."}</p>
+          <p>Visit the marketplace to get your Slug and join the battle!</p>
+          <div className="game__debug-section">
+            <p className="game__debug">Wallet address: {accountAddress}</p>
+            <p className="game__debug">Network: {chain}</p>
+            <p className="game__debug">Please check the browser console for detailed information.</p>
           </div>
-        </div>
-
-        <div className="game__main-content">
-          <div className="game__selection-info">
-            Selected: {selectedSlugs.length}/{REQUIRED_SLUGS_COUNT}
-          </div>
-          <div className="game__slug-selection">
-            {availableSlugs.map((slug, index) => (
-              <button
-                key={index}
-                className={`game__card ${!slug.owned ? 'game__card--locked' : ''} ${
-                  selectedSlugs.some(s => s.name === slug.name) ? 'game__card--selected' : ''
-                }`}
-                onClick={() => handleSlugSelect(slug)}
-                disabled={!slug.owned}
-              >
-                <div className="game__card-content">
-                  <div className="game__card-title">{slug.name}</div>
-                  <img 
-                    src={SlugImages[slug.image as keyof typeof SlugImages]} 
-                    alt={slug.name}
-                    className="game__card-image"
-                  />
-                  {!slug.owned && <div className="game__card-locked">Not Owned</div>}
-                </div>
-              </button>
-            ))}
-          </div>
-          <button 
-            className="game__button"
-            onClick={handleStartGame}
-            disabled={selectedSlugs.length !== REQUIRED_SLUGS_COUNT}
-          >
-            Start Battle
-          </button>
         </div>
       </div>
     );
@@ -302,115 +143,99 @@ function Game({ accountAddress, chain, handleSetLog }: {
 
   return (
     <div className="game">
-      <div className="game__top-bar">
-        <div className="game__top-bar-content">
-          <h1 className="game__title">Battle Slugs</h1>
-        </div>
-      </div>
-
-      <div className="game__main-content">
-        {!isPlaying ? (
-          <section className="game__start-section">
-            <button className="game__button" onClick={() => setIsPlaying(true)}>
-              Start Game
-            </button>
-          </section>
-        ) : (
-          <div className="game__centered-content">
-            {renderOpponentSection()}
-
-            <section className="game__battle-section">
-              <div className="game__battle-zone">
-                {battleResult && (
-                  <div className={`game__battle-zone-result game__battle-zone-result--${battleResult}`}>
-                    {battleResult.toUpperCase()}!
-                  </div>
-                )}
-              </div>
-            </section>
-
-            <section className="game__player-section">
-              <div className="game__active-slug">
-                <h3 className="game__subsection-title game__subsection-title--centered">Active Slug</h3>
-                <button 
-                  className="game__card game__card--active"
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
-                  onKeyDown={handleDropZoneKeyPress}
-                  tabIndex={0}
-                  aria-label="Active slug drop zone"
-                >
-                  <div className="game__card-content">
-                    <div className="game__card-title">{selectedSlugs[activeSlugIndex].name}</div>
-                    <img 
-                      src={SlugImages[selectedSlugs[activeSlugIndex].image as keyof typeof SlugImages]} 
-                      alt={selectedSlugs[activeSlugIndex].name}
-                      className="game__card-image"
-                    />
-                    {renderHealthBar(
-                      selectedSlugs[activeSlugIndex].health,
-                      selectedSlugs[activeSlugIndex].maxHealth
-                    )}
-                  </div>
-                </button>
-
-                <div className="game__attacks">
-                  {selectedSlugs[activeSlugIndex].attacks.map((attack, index) => (
-                    <button
-                      key={index}
-                      className={`game__attack-button ${isAttackOnCooldown(attack) ? 'game__attack-button--cooldown' : ''}`}
-                      onClick={() => handleAttack(attack)}
-                      disabled={isBattling || isAttackOnCooldown(attack)}
-                    >
-                      <div className="game__attack-name">{attack.name}</div>
-                      <div className="game__attack-damage">Damage: {attack.damage}</div>
-                      {isAttackOnCooldown(attack) && (
-                        <div className="game__attack-cooldown">
-                          Cooldown: {attackCooldowns[`${activeSlugIndex}-${attack.name}`]}
-                        </div>
-                      )}
-                    </button>
-                  ))}
+      <div className="game__battlefield">
+        <div className="game__side game__side--player">
+          <div className="game__active-section">
+            <div 
+              className={`game__card game__card--active`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
+              <img src={SlugImages[activeSlug.image as SlugImageKey]} alt={activeSlug.name} />
+              <div className="game__health-container">
+                <div className="game__health-bar">
+                  <div 
+                    className="game__health-fill" 
+                    style={{ width: getHealthPercentage(activeSlug) }}
+                  ></div>
+                </div>
+                <div className="game__health-text">
+                  {activeSlug.health}/{activeSlug.maxHealth}
                 </div>
               </div>
-
-              <div className="game__bench">
-                <h3 className="game__subsection-title game__subsection-title--centered">Bench Slugs</h3>
-                <div className="game__player-area">
-                  {selectedSlugs.map((slug, index) => (
-                    index !== activeSlugIndex && (
-                      <button
-                        key={index}
-                        className="game__card"
-                        onClick={() => handleBenchSlugSelect(index)}
-                        onKeyDown={(e) => handleCardKeyPress(e, index)}
-                        draggable={!isBattling}
-                        onDragStart={(e) => handleDragStart(e, index)}
-                        onDragEnd={handleDragEnd}
-                        disabled={isBattling}
-                        aria-label={`Select ${slug.name}`}
-                      >
-                        <div className="game__card-content">
-                          <div className="game__card-title">{slug.name}</div>
-                          <img 
-                            src={SlugImages[slug.image as keyof typeof SlugImages]} 
-                            alt={slug.name}
-                            className="game__card-image"
-                          />
-                          {renderHealthBar(slug.health, slug.maxHealth)}
-                        </div>
-                      </button>
-                    )
-                  ))}
-                </div>
-              </div>
-            </section>
+            </div>
+            <div className="game__abilities">
+              {activeSlug.attacks.map(attack => renderAbilityButton(attack))}
+            </div>
           </div>
-        )}
+
+          <div className="game__bench">
+            <div className="game__bench-cards">
+              {benchSlugs.map((slug) => (
+                <div 
+                  key={slug.id} 
+                  className="game__card"
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, slug)}
+                  onDragEnd={handleDragEnd}
+                >
+                  <img src={SlugImages[slug.image as SlugImageKey]} alt={slug.name} />
+                  <div className="game__health-container">
+                    <div className="game__health-bar">
+                      <div 
+                        className="game__health-fill" 
+                        style={{ width: getHealthPercentage(slug) }}
+                      ></div>
+                    </div>
+                    <div className="game__health-text">
+                      {slug.health}/{slug.maxHealth}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="game__side game__side--opponent">
+          <div className="game__active-section">
+            <div className={`game__card game__card--active ${attackAnimation}`}>
+              <img src={SlugImages[opponentActiveSlug.image as SlugImageKey]} alt={opponentActiveSlug.name} />
+              <div className="game__health-container">
+                <div className="game__health-bar">
+                  <div 
+                    className="game__health-fill" 
+                    style={{ width: getHealthPercentage(opponentActiveSlug) }}
+                  ></div>
+                </div>
+                <div className="game__health-text">
+                  {opponentActiveSlug.health}/{opponentActiveSlug.maxHealth}
+                </div>
+              </div>
+            </div>
+            <div className="game__abilities">
+              {opponentActiveSlug.attacks.map(attack => renderAbilityButton(attack, true))}
+            </div>
+          </div>
+
+          <div className="game__bench">
+            <div className="game__bench-cards">
+              <div className="game__card game__card--face-down">
+                <img src={SlugImages['Back_Card.png']} alt="Face Down Card" />
+              </div>
+              <div className="game__card game__card--face-down">
+                <img src={SlugImages['Back_Card.png']} alt="Face Down Card" />
+              </div>
+              <div className="game__card game__card--face-down">
+                <img src={SlugImages['Back_Card.png']} alt="Face Down Card" />
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
-}
+};
 
 export default Game;
